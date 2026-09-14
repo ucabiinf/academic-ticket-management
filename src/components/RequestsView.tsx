@@ -44,9 +44,13 @@ export const RequestsView: React.FC = () => {
   };
 
 
-  const fetchRequests = async () => {
-    try {
-      // Fetch from normalized tables with joins
+  const fetchAllObservaciones = async () => {
+    const PAGE_SIZE = 1000;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let allData: any[] = [];
+    let from = 0;
+
+    while (true) {
       const { data, error } = await supabase
         .from('observacion')
         .select(`
@@ -73,9 +77,25 @@ export const RequestsView: React.FC = () => {
           materia (
             mat_nombre
           )
-        `);
+        `)
+        .order('obs_id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
 
       if (error) throw error;
+
+      allData = allData.concat(data || []);
+
+      if (!data || data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+
+    return allData;
+  };
+
+  const fetchRequests = async () => {
+    try {
+      // Fetch from normalized tables with joins (paginado para superar el límite de 1000 filas de PostgREST)
+      const data = await fetchAllObservaciones();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedRequests: Request[] = (data || []).map((row: any) => ({

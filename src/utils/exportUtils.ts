@@ -1,37 +1,57 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 
-export const exportObservationsToExcel = async () => {
-  // Fetch ALL data from the normalized tables with joins
-  const { data, error } = await supabase
-    .from('observacion')
-    .select(`
-      obs_id,
-      obs_estatus,
-      obs_clasificacion,
-      obs_num_caso,
-      obs_fecha,
-      obs_autoriza,
-      obs_accion,
-      obs_nrc_solicitado,
-      obs_comentarios,
-      obs_responsable,
-      obs_respuesta_interna,
-      obs_respuesta_externa,
-      estudiante (
-        est_cedula,
-        est_nombre,
-        est_ubic_sem,
-        est_promedio,
-        est_creditos_acum,
-        est_correo
-      ),
-      materia (
-        mat_nombre
-      )
-    `);
+async function fetchAllObservaciones() {
+  const PAGE_SIZE = 1000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let allData: any[] = [];
+  let from = 0;
 
-  if (error) throw error;
+  while (true) {
+    const { data, error } = await supabase
+      .from('observacion')
+      .select(`
+        obs_id,
+        obs_estatus,
+        obs_clasificacion,
+        obs_num_caso,
+        obs_fecha,
+        obs_autoriza,
+        obs_accion,
+        obs_nrc_solicitado,
+        obs_comentarios,
+        obs_responsable,
+        obs_respuesta_interna,
+        obs_respuesta_externa,
+        estudiante (
+          est_cedula,
+          est_nombre,
+          est_ubic_sem,
+          est_promedio,
+          est_creditos_acum,
+          est_correo
+        ),
+        materia (
+          mat_nombre
+        )
+      `)
+      .order('obs_id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    allData = allData.concat(data || []);
+
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return allData;
+}
+
+export const exportObservationsToExcel = async () => {
+  // Fetch ALL data from the normalized tables with joins (paginado para superar el límite de 1000 filas de PostgREST)
+  const data = await fetchAllObservaciones();
 
   if (!data || data.length === 0) {
     return 0; // Return 0 gracefully instead of throwing an error
