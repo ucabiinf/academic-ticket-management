@@ -20,9 +20,13 @@ export const StudentRecords: React.FC = () => {
   const [selectedResponsible, setSelectedResponsible] = useState<string>('All');
   const [selectedAction, setSelectedAction] = useState<string>('All');
 
-  const fetchRequests = useCallback(async () => {
-    try {
-      // Fetch from normalized tables with joins
+  const fetchAllObservaciones = useCallback(async () => {
+    const PAGE_SIZE = 1000;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let allData: any[] = [];
+    let from = 0;
+
+    while (true) {
       const { data, error } = await supabase
         .from('observacion')
         .select(`
@@ -49,9 +53,25 @@ export const StudentRecords: React.FC = () => {
           materia (
             mat_nombre
           )
-        `);
+        `)
+        .order('obs_id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
 
       if (error) throw error;
+
+      allData = allData.concat(data || []);
+
+      if (!data || data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+
+    return allData;
+  }, []);
+
+  const fetchRequests = useCallback(async () => {
+    try {
+      // Fetch from normalized tables with joins (paginado para superar el límite de 1000 filas de PostgREST)
+      const data = await fetchAllObservaciones();
 
       // Transformar datos de Supabase a nuestro tipo Request
       const formattedRequests: Request[] = (data || []).map((row: any) => ({
@@ -85,7 +105,7 @@ export const StudentRecords: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchAllObservaciones]);
 
   useEffect(() => {
     fetchRequests();
